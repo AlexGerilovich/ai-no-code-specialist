@@ -12,28 +12,34 @@ Planned time:
 60–90 minutes
 
 Tasks
-Specify required fields; define output structure; document validation rules; update README.
+1. Identify required intake fields
+2. Define validation rules
+3. Document output structure
+4. Record happy and failure tests
 
 Deliverables
 Updated README + contract section
 
 Tests
-Valid payload / Missing field / Invalid text
+1) Valid payload with text and chat_id
+2) Missing field without text
+3) Empty message rejected
 
 Artifact created
-- 
+- cases/telegram-intake-bot/README.md
+- journal/day-02.md
 
 Problems
-- 
+Data contract was not explicitly documented.
 
 Consulting insight
+Explicit input/output contracts simplify automation maintenance.
 
 Time spent
+~60 minutes
 
 Agent verdict
 PENDING
 
 Suggested commit
 Day 02: define intake data contract
-
-Next step

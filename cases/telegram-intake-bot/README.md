@@ -107,3 +107,38 @@ Future improvements:
 - AI classification of request
 - priority detection
 - operator dashboard
+
+
+## Data Contract
+
+### Required Input Fields
+
+- source: string
+- received_at: datetime
+- chat_id: integer
+- username: string
+- first_name: string
+- text: string
+- status: string
+- route: string
+
+### Validation Rules
+
+- text must not be empty
+- chat_id must exist
+- source must be telegram
+- status defaults to new
+- route defaults to intake
+
+### Output Object
+
+{
+  "source": "telegram",
+  "received_at": "ISO datetime",
+  "chat_id": 123456789,
+  "username": "user",
+  "first_name": "Alex",
+  "text": "request text",
+  "status": "new",
+  "route": "intake"
+}
