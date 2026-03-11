@@ -3,9 +3,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JOURNAL_DIR="$REPO_DIR/journal"
-METRICS_FILE="$REPO_DIR/metrics/learning_metrics.md"
-PORTFOLIO_FILE="$REPO_DIR/metrics/portfolio_metrics.md"
-CURRICULUM_FILE="$REPO_DIR/curriculum.md"
+PLAN_FILE="$REPO_DIR/curriculum/day_plan.tsv"
+STATE_DIR="$REPO_DIR/.state"
+CURRENT_DAY_FILE="$STATE_DIR/current_day"
 
 TODAY="$(date +%F)"
 TODAY_FILE="$JOURNAL_DIR/$TODAY.md"
@@ -14,12 +14,61 @@ cmd="${1:-status}"
 shift || true
 payload="${*:-}"
 
-mkdir -p "$JOURNAL_DIR"
+mkdir -p "$JOURNAL_DIR" "$STATE_DIR"
 
-create_day_if_missing() {
-  if [ ! -f "$TODAY_FILE" ]; then
-    "$REPO_DIR/scripts/create_day.sh" >/dev/null 2>&1 || true
+normalize_day() {
+  local raw="${1:-}"
+  raw="${raw#0}"
+  if [ -z "$raw" ]; then
+    raw="0"
   fi
+  printf "%02d" "$((10#$raw))"
+}
+
+get_current_day() {
+  if [ -f "$CURRENT_DAY_FILE" ]; then
+    cat "$CURRENT_DAY_FILE"
+  else
+    echo "01"
+  fi
+}
+
+plan_line() {
+  local day="$1"
+  grep "^$day|" "$PLAN_FILE" 2>/dev/null || true
+}
+
+plan_field() {
+  local day="$1"
+  local field="$2"
+  python3 - "$PLAN_FILE" "$day" "$field" <<'PY'
+from pathlib import Path
+import sys
+
+plan_file = Path(sys.argv[1])
+day = sys.argv[2]
+field = sys.argv[3]
+
+if not plan_file.exists():
+    print("")
+    raise SystemExit
+
+lines = plan_file.read_text(encoding="utf-8").splitlines()
+if not lines:
+    print("")
+    raise SystemExit
+
+header = lines[0].split("|")
+index = {name: i for i, name in enumerate(header)}
+
+for line in lines[1:]:
+    parts = line.split("|")
+    if parts[0] == day:
+        print(parts[index[field]])
+        raise SystemExit
+
+print("")
+PY
 }
 
 count_days() {
@@ -30,71 +79,76 @@ count_artifacts() {
   find "$REPO_DIR/cases" "$REPO_DIR/workflows" -type f 2>/dev/null | wc -l | tr -d ' '
 }
 
-current_case() {
-  if grep -qi "Intake Bot" "$PORTFOLIO_FILE" 2>/dev/null; then
-    echo "Telegram Intake Bot"
+status_message() {
+  local day theme goal days artifacts next_step
+  day="$(get_current_day)"
+  theme="$(plan_field "$day" "theme")"
+  goal="$(plan_field "$day" "goal")"
+  days="$(count_days)"
+  artifacts="$(count_artifacts)"
+
+  if [ -f "$TODAY_FILE" ]; then
+    next_step="/report or /accept"
+    journal_state="OK (Day $day)"
   else
-    echo "Case not defined"
+    next_step="/day $day"
+    journal_state="MISSING"
   fi
+
+  cat <<MSG
+Agent: ONLINE
+Mode: STDOUT(JSON)
+Time: $(date --iso-8601=seconds)
+Journal: $journal_state
+Day: $day
+Theme: $theme
+Goal: $goal
+Days completed: $days
+Artifacts detected: $artifacts
+Next: $next_step
+MSG
 }
 
 start_message() {
-  create_day_if_missing
+  local day theme goal tasks deliverables tests commit
+  day="${1:-$(get_current_day)}"
+  day="$(normalize_day "$day")"
+  theme="$(plan_field "$day" "theme")"
+  goal="$(plan_field "$day" "goal")"
+  tasks="$(plan_field "$day" "tasks")"
+  deliverables="$(plan_field "$day" "deliverables")"
+  tests="$(plan_field "$day" "tests")"
+  commit="$(plan_field "$day" "commit")"
+
   cat <<MSG
-Day: $TODAY
+Day: $day
+Theme: $theme
 
 Goal:
-Document and validate the first portfolio case: Telegram Intake Bot
+$goal
 
 Time:
 60–90 minutes
 
+Tasks:
+$tasks
+
 Deliverables:
-1. Create a case file from CASE_TEMPLATE.md
-2. Define business problem, input, output, workflow logic
-3. Export or prepare first n8n workflow draft
-4. Add at least 1 happy path and 1 failure path
-5. Fill today's journal
+$deliverables
 
-Suggested artifact names:
-- cases/telegram-intake-bot/README.md
-- workflows/telegram-intake-bot-v1.json
+Tests:
+$tests
 
-Definition of Done:
-- artifact exists
-- journal exists
-- happy path defined
-- failure path defined
-- commit created
-MSG
-}
-
-status_message() {
-  local days artifacts case_name
-  days="$(count_days)"
-  artifacts="$(count_artifacts)"
-  case_name="$(current_case)"
-
-  cat <<MSG
-Training Status
-
-Days completed: $days
-Artifacts detected: $artifacts
-Current focus: $case_name
-
-Required loop:
-1. /start
-2. build artifact
-3. /report what was done
-4. commit to git
-
-Today's journal:
-$TODAY_FILE
+Suggested commit:
+$commit
 MSG
 }
 
 append_report() {
-  create_day_if_missing
+  if [ ! -f "$TODAY_FILE" ]; then
+    echo "❌ Нет journal на сегодня. Сначала /day $(get_current_day)"
+    exit 1
+  fi
 
   {
     echo
@@ -103,66 +157,13 @@ append_report() {
   } >> "$TODAY_FILE"
 
   cat <<MSG
-Report saved to:
-$TODAY_FILE
-
-Pre-check:
-- report recorded
-- journal exists
-
-Before PASS confirm:
-1. artifact created
-2. happy path present
-3. failure path present
-4. git commit done
+✅ /report принят. Проверь прогресс: /status. Когда готов — /accept
 MSG
-}
-
-pass_check() {
-  local missing=0
-
-  echo "PASS check for $TODAY"
-  echo
-
-  if [ ! -f "$TODAY_FILE" ]; then
-    echo "- missing journal: $TODAY_FILE"
-    missing=1
-  else
-    echo "+ journal exists"
-  fi
-
-  if [ ! -f "$REPO_DIR/cases/telegram-intake-bot/README.md" ]; then
-    echo "- missing case artifact: cases/telegram-intake-bot/README.md"
-    missing=1
-  else
-    echo "+ case artifact exists"
-  fi
-
-  if ! find "$REPO_DIR/workflows" -maxdepth 1 -type f | grep -q .; then
-    echo "- no workflow artifact found in workflows/"
-    missing=1
-  else
-    echo "+ workflow artifact found"
-  fi
-
-  if ! git -C "$REPO_DIR" log -1 --pretty=%B >/dev/null 2>&1; then
-    echo "- unable to read git history"
-    missing=1
-  else
-    echo "+ git history available"
-  fi
-
-  echo
-  if [ "$missing" -eq 0 ]; then
-    echo "PASS: minimum conditions met"
-  else
-    echo "FAIL: not enough evidence for PASS"
-  fi
 }
 
 case "$cmd" in
   start)
-    start_message
+    start_message "${1:-}"
     ;;
   status)
     status_message
@@ -170,18 +171,14 @@ case "$cmd" in
   report)
     append_report
     ;;
-  pass-check)
-    pass_check
-    ;;
   *)
     cat <<MSG
 Unknown command: $cmd
 
 Allowed commands:
-- start
+- start [day]
 - status
 - report "text"
-- pass-check
 MSG
     exit 1
     ;;
