@@ -142,3 +142,49 @@ Future improvements:
   "status": "new",
   "route": "intake"
 }
+
+
+## Failure Path Handling
+
+### Failure Cases
+
+1. Empty message  
+If the incoming Telegram message has no usable text, the workflow must stop and return a clear error message.
+
+2. Missing sender metadata  
+If `chat_id` or sender metadata is missing, the payload should be marked invalid and routed to manual review.
+
+3. Malformed payload  
+If the Telegram payload structure is incomplete or unexpected, the workflow should not continue normal intake processing.
+
+4. Duplicate submission  
+If the same request is submitted repeatedly in a short interval, it should be flagged for operator review.
+
+5. Downstream workflow failure  
+If the next internal processing step fails, the intake record should remain visible for manual recovery.
+
+### Fallback Responses
+
+- Empty message → ask user to send a valid request text
+- Missing required field → route to manual review
+- Malformed payload → stop processing and log incident
+- Duplicate request → flag for operator review
+- Downstream failure → preserve intake object and escalate manually
+
+### Human Override
+
+An operator must be able to:
+- inspect failed intake records
+- re-route a request manually
+- re-send a request into the next workflow
+- close false duplicate flags manually
+
+### Monitoring Notes
+
+The system should log:
+- validation failure reason
+- missing field name
+- duplicate detection event
+- downstream failure event
+- manual override action
+
