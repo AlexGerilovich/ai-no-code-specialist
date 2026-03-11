@@ -2,10 +2,10 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TODAY="$(date +%F)"
 JOURNAL_DIR="$REPO_DIR/journal"
 STATE_DIR="$REPO_DIR/.state"
 CURRENT_DAY_FILE="$STATE_DIR/current_day"
+
 DAY_RAW="${1:-}"
 
 mkdir -p "$JOURNAL_DIR" "$STATE_DIR"
@@ -30,7 +30,8 @@ else
 fi
 
 PLAN_FILE="$REPO_DIR/daily_plans/day-$DAY.md"
-DAY_FILE="$JOURNAL_DIR/$TODAY.md"
+DAY_FILE="$JOURNAL_DIR/day-$DAY.md"
+TODAY="$(date +%F)"
 
 if [ ! -f "$PLAN_FILE" ]; then
   echo "Plan not found: daily_plans/day-$DAY.md"
@@ -38,13 +39,9 @@ if [ ! -f "$PLAN_FILE" ]; then
 fi
 
 if [ -f "$DAY_FILE" ]; then
-  EXISTING_DAY="$(grep -m1 '^Day:' "$DAY_FILE" | sed 's/^Day:[[:space:]]*//' | tr -d '\r' || true)"
-  if [ "$EXISTING_DAY" = "$DAY" ]; then
-    echo "Journal already exists: journal/$TODAY.md"
-    exit 0
-  fi
-  echo "Journal already exists for Day $EXISTING_DAY: journal/$TODAY.md"
-  exit 2
+  echo "Journal already exists: journal/day-$DAY.md"
+  echo "$DAY" > "$CURRENT_DAY_FILE"
+  exit 0
 fi
 
 cp "$PLAN_FILE" "$DAY_FILE"

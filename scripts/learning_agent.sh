@@ -7,9 +7,6 @@ PLAN_FILE="$REPO_DIR/curriculum/day_plan.tsv"
 STATE_DIR="$REPO_DIR/.state"
 CURRENT_DAY_FILE="$STATE_DIR/current_day"
 
-TODAY="$(date +%F)"
-TODAY_FILE="$JOURNAL_DIR/$TODAY.md"
-
 cmd="${1:-status}"
 shift || true
 payload="${*:-}"
@@ -33,9 +30,9 @@ get_current_day() {
   fi
 }
 
-plan_line() {
+journal_file_for_day() {
   local day="$1"
-  grep "^$day|" "$PLAN_FILE" 2>/dev/null || true
+  echo "$JOURNAL_DIR/day-$day.md"
 }
 
 plan_field() {
@@ -72,7 +69,7 @@ PY
 }
 
 count_days() {
-  find "$JOURNAL_DIR" -maxdepth 1 -type f -name '*.md' | wc -l | tr -d ' '
+  find "$JOURNAL_DIR" -maxdepth 1 -type f -name 'day-*.md' | wc -l | tr -d ' '
 }
 
 count_artifacts() {
@@ -80,19 +77,20 @@ count_artifacts() {
 }
 
 status_message() {
-  local day theme goal days artifacts next_step
+  local day theme goal days artifacts journal_file journal_state next_step
   day="$(get_current_day)"
   theme="$(plan_field "$day" "theme")"
   goal="$(plan_field "$day" "goal")"
   days="$(count_days)"
   artifacts="$(count_artifacts)"
+  journal_file="$(journal_file_for_day "$day")"
 
-  if [ -f "$TODAY_FILE" ]; then
-    next_step="/report or /accept"
+  if [ -f "$journal_file" ]; then
     journal_state="OK (Day $day)"
+    next_step="/report or /accept"
   else
-    next_step="/day $day"
     journal_state="MISSING"
+    next_step="/day $day"
   fi
 
   cat <<MSG
@@ -105,6 +103,7 @@ Theme: $theme
 Goal: $goal
 Days completed: $days
 Artifacts detected: $artifacts
+Current journal: journal/day-$day.md
 Next: $next_step
 MSG
 }
@@ -145,16 +144,20 @@ MSG
 }
 
 append_report() {
-  if [ ! -f "$TODAY_FILE" ]; then
-    echo "❌ Нет journal на сегодня. Сначала /day $(get_current_day)"
+  local day journal_file
+  day="$(get_current_day)"
+  journal_file="$(journal_file_for_day "$day")"
+
+  if [ ! -f "$journal_file" ]; then
+    echo "❌ Нет journal для Day $day. Сначала /day $day"
     exit 1
   fi
 
   {
     echo
-    echo "Report update ($TODAY $(date +%H:%M:%S))"
+    echo "Report update ($(date +%F) $(date +%H:%M:%S))"
     echo "$payload"
-  } >> "$TODAY_FILE"
+  } >> "$journal_file"
 
   cat <<MSG
 ✅ /report принят. Проверь прогресс: /status. Когда готов — /accept
