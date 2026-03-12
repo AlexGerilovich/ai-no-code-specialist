@@ -188,3 +188,47 @@ The system should log:
 - downstream failure event
 - manual override action
 
+
+## Monitoring and Operator Visibility
+
+### Key Events to Log
+
+- message received
+- validation passed
+- validation failed
+- route assigned
+- duplicate detected
+- downstream workflow started
+- downstream workflow failed
+- manual override applied
+
+### Minimum Monitoring Fields
+
+- event_time
+- chat_id
+- username
+- request_status
+- route
+- failure_reason
+- operator_action
+
+### Operator Alerts
+
+The operator should be able to notice:
+
+- repeated validation failures
+- repeated duplicate requests
+- downstream workflow failures
+- requests waiting for manual review
+- requests re-routed manually
+
+### Operational Use
+
+Monitoring should help answer:
+
+- how many requests were received
+- how many failed validation
+- how many required manual review
+- how many failed in downstream processing
+- how many were recovered manually
+
